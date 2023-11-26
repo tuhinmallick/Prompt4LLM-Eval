@@ -21,10 +21,10 @@ def main(args):
 
     u_prompt, a_prompt = load_prompt_template(model_name, model_path, device="cuda:0")
     llm = LLM(model=model_path, tensor_parallel_size = 1)
-    
+
     summ_path = args.data_path #'../data/summarization/train_summarization.tsv'
     summ_df = pd.read_csv(summ_path)
-    
+
     source = summ_df['SRC'].tolist()
     summary = summ_df['HYP'].tolist()
     gt_score = summ_df['Score'].tolist()
@@ -53,14 +53,14 @@ def main(args):
         aspect_definition['coherence'] = load_definition(args.template_path, aspect='coherence', definition_type=args.definition)
         aspect_definition['factuality'] = load_definition(args.template_path, aspect='factuality', definition_type=args.definition)
         aspect_definition['readability'] = load_definition(args.template_path, aspect='readability', definition_type=args.definition)
-    
+
 
     ##################### Step2: Scoring #####################   
     score_inputs = {}
     # simple output scoring
     for aspect in aspect_list:
         definition = aspect_definition[aspect]
-        
+
         # load custom prompt
         score_prompt_list = []
         for i in range(len(source)):
@@ -80,39 +80,38 @@ def main(args):
                 print("prompt:", temp)
             score_prompt_list.append(temp)
         score_inputs[aspect] = score_prompt_list
-    
+
     # scoring
     output_score = {}
     for aspect in tqdm(aspect_list):
         output_score[aspect] = {}
         score_input = score_inputs[aspect]
-        
+
         if args.score_func == 'logprobs_sum':
             sampling_params = SamplingParams(temperature=args.score_temperature, max_tokens=args.max_token, n=args.score_num, stop=[u_prompt, a_prompt, '</s>'], logprobs=args.score_logprobs)
         else:
             sampling_params = SamplingParams(temperature=args.score_temperature, max_tokens=args.max_token, n=args.score_num, stop=[u_prompt, a_prompt, '</s>'], logprobs=None)
         score_output = generate_score(llm, score_input, sampling_params, score_func=args.score_func)
-            
+
         if args.train=='True':
             correlation_output = correlation_result(score_output, gt_score)
             output_score[aspect]['correlation'] = correlation_output
 
         output_score[aspect]['score'] = score_output
-        
-    final_score_sum=0
-    for aspect in aspect_list:
-        final_score_sum += np.array(output_score[aspect]['score'])
 
+    final_score_sum = sum(
+        np.array(output_score[aspect]['score']) for aspect in aspect_list
+    )
     output_score['final_score'] = {}
 
     final_score_mean = final_score_sum / len(aspect_list)
     output_score['final_score']['scores'] = final_score_mean.tolist()
-          
+
     if args.train=='True':
         output_score['final_score']['correlation'] = correlation_result(output_score['final_score']['scores'], gt_score)
     else:
         pd.DataFrame(data={'pred_score':output_score['final_score']['scores']}).to_csv(args.submit_result_path + "seg.scores", header=False, index=False)
-        
+
     with open(os.path.join(args.final_score_output_path,'final_result.json'), 'w') as file:
         json.dump(output_score, file, indent=4)
 

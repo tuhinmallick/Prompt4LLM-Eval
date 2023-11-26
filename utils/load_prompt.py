@@ -12,9 +12,8 @@ def load_definition(template_path,
     
     with open(template_path, 'r') as file:
         templates = json.load(file)
-        
-    definition = templates['aspect'][aspect][definition_type]
-    return definition
+
+    return templates['aspect'][aspect][definition_type]
 
 # custom prompt
 def make_prompt_type(templates, u_prompt, a_prompt, aspect, definition, source, summary, 
@@ -22,22 +21,24 @@ def make_prompt_type(templates, u_prompt, a_prompt, aspect, definition, source, 
     
     templates=templates
     task_description=templates["task_description"][task_desc_type]
-    
+
     if n_aspect == 'single_aspect':
         template = templates['experiment']['zero_shot'][prompting][n_aspect][scoring][aspect_cate]
-        result = template.format(u_prompt=u_prompt,
-                        a_prompt=a_prompt,
-                        source=source,
-                        summary=summary)
-        return result
+        return template.format(
+            u_prompt=u_prompt,
+            a_prompt=a_prompt,
+            source=source,
+            summary=summary,
+        )
     elif n_aspect == 'multi_aspect':
         template = templates['experiment']['zero_shot'][prompting][n_aspect][f'{scoring}_definition']
-        result = template.format(u_prompt=u_prompt,
-                        a_prompt=a_prompt,
-                        aspect=aspect,
-                        definition=definition,
-                        source=source,
-                        summary=summary,
-                        task_description=task_description)
-        return result
+        return template.format(
+            u_prompt=u_prompt,
+            a_prompt=a_prompt,
+            aspect=aspect,
+            definition=definition,
+            source=source,
+            summary=summary,
+            task_description=task_description,
+        )
 

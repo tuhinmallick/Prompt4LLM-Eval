@@ -24,27 +24,23 @@ def generate_standard(model, prompt_list, sampling_params):
 
     # Print the outputs.
     output_list = []
-    i = 0
-    for output in outputs:
+    for i, output in enumerate(outputs, start=1):
         generated_text = output.outputs[0].text
         output_list.append(generated_text)
-        i+=1
         if i<5:
             print(f"Generated text: {generated_text!r}")
-    
+
     return output_list
 
 def generate_sampling(model, prompt, sampling_params, n):
     output_list = []
-    i = 0
-    for j in range(n):
+    for i, _ in enumerate(range(n), start=1):
         outputs = model.generate(prompt, sampling_params)
         generated_text = outputs[0].outputs[0].text
         output_list.append(generated_text)
-        i+=1
         if i<3:
             print(f"Generated text: {generated_text!r}")
-    
+
     return output_list
 
 def generate_score(model, prompt_list, sampling_params, score_func, explanation=True):
@@ -53,14 +49,12 @@ def generate_score(model, prompt_list, sampling_params, score_func, explanation=
 
     # Print the outputs.
     output_list = []
-    i = 0
-    for output in outputs:
+    for i, output in enumerate(outputs, start=1):
         generated_text = output.outputs[0].text
         output_list.append(generated_text)
-        i+=1
         if i<5:
             print(f"Generated text: {generated_text!r}")
-    
+
     if score_func=='direct_generation':
         # score_list = [parse_output(x) for x in output_list]
         parse = [parse_output(x) for x in output_list]
@@ -70,31 +64,24 @@ def generate_score(model, prompt_list, sampling_params, score_func, explanation=
             if parse_extract[i] == 0:
                 parse_extract[i] = extract[i]
         score_list = parse_extract
-        
-        if explanation:
-            explain_list = [extract_rationale(x) for x in output_list]
-            
-            return score_list, explain_list
-        
-        else:
+
+        if not explanation:
             return score_list
-        
+
+        explain_list = [extract_rationale(x) for x in output_list]
+
+        return score_list, explain_list
+
     elif score_func=='logprob_sum':
         score_list = []
-        
+
         score_token_id = {'1':tokenizer.convert_tokens_to_ids('1'),
                     '2':tokenizer.convert_tokens_to_ids('2'),
                     '3':tokenizer.convert_tokens_to_ids('3'),
                     '4':tokenizer.convert_tokens_to_ids('4'),
                     '5':tokenizer.convert_tokens_to_ids('5')}
-        
-        score_prob_dict = {}
-        score_prob_dict['1'] = {}
-        score_prob_dict['2'] = {}
-        score_prob_dict['3'] = {}
-        score_prob_dict['4'] = {}
-        score_prob_dict['5'] = {}
-        
+
+        score_prob_dict = {'1': {}, '2': {}, '3': {}, '4': {}, '5': {}}
         for output in outputs:
             for n in range(5):
                 # first token logprobability
@@ -102,36 +89,33 @@ def generate_score(model, prompt_list, sampling_params, score_func, explanation=
                 if list(output.outputs[0].logprobs[n].keys())[0] in list(score_token_id.values()):
                     log_prob_dict = output.outputs[0].logprobs[n]
                     break
-            
+
             for score_token in list(score_token_id.keys()):
                 try:
                     prob = log_prob_dict[score_token_id[score_token]]
                 except:
                     prob = -10000
                 score_prob_dict[score_token] = prob
-                
+
             ws_score = weighted_sum(score_prob_dict)
             score_list.append(ws_score)
         return score_list
-                
+
     elif score_func=='sampling_sum':
         score_list = []
         for output in outputs:
-            sampling_list = []
-            for output_text in output.outputs:
-                sampling_list.append(output_text.text)
-            
+            sampling_list = [output_text.text for output_text in output.outputs]
             parse = [parse_output(x) for x in sampling_list]
             extract = [extract_score(x) for x in sampling_list]
             parse_extract = parse.copy()
             for i in range(len(parse_extract)):
                 if parse_extract[i] == 0:
                     parse_extract[i] = extract[i]
-                    
+
             sampling_parse_list = parse_extract
-            
+
             score_list.append(np.mean(np.array(sampling_parse_list)))
-            
+
         return score_list
 
 # guidance
@@ -141,19 +125,18 @@ def scoring(res, num_outputs, calculation_method, aspects):
             score = res['score']
         elif calculation_method=="ws":
             score = weighted_sum(res['logprobs'])
-    
+
     elif num_outputs=="multiple":
         if calculation_method=="dg":
-            variables = {}
-            for aspect in aspects:
-                variables[aspect] = int(res[aspect])
+            variables = {aspect: int(res[aspect]) for aspect in aspects}
             score = str(sum(variables.values()) / len(variables))
         elif calculation_method=="ws":
-            variables = {}
-            for aspect in aspects:
-                variables[aspect] = weighted_sum(res[aspect+'_logprobs'])
+            variables = {
+                aspect: weighted_sum(res[f'{aspect}_logprobs'])
+                for aspect in aspects
+            }
             score = str(sum(variables.values()) / len(variables))
-            
+
     return score
 
 def correlation_result(res_scores, ref_scores):
@@ -164,13 +147,12 @@ def correlation_result(res_scores, ref_scores):
     print('pearson: ', round(pearson, 4))
     print('spearman: ', round(spearman, 4))
     print('kendall: ', round(kendall, 4))
-    
-    output_dict = {}
-    output_dict['pearson'] = round(pearson, 4)
-    output_dict['spearman'] = round(spearman, 4)
-    output_dict['kendall'] = round(kendall, 4)
-    
-    return output_dict 
+
+    return {
+        'pearson': round(pearson, 4),
+        'spearman': round(spearman, 4),
+        'kendall': round(kendall, 4),
+    } 
 
     
 def plot_histogram(vars_list, colors_list, labels_list, bins=20, figsize=(5, 3), title='Distribution', xlabel='Value', ylabel='Count'):
@@ -237,8 +219,7 @@ def find_outliers(df, col1, col2, method='difference', threshold_factor=2):
 
 def parse_output(output):
     try:
-        matched = re.search("^ ?([\d\.]+)", output)
-        if (matched):
+        if matched := re.search("^ ?([\d\.]+)", output):
             try:
                 score = float(matched.group(1))
             except:
@@ -256,9 +237,7 @@ def calculate_zero_ratio(lst):
     return round(zero_ratio, 4)
 
 def extract_score(text):
-    # Use regex to find the number immediately following "Score:"
-    match = re.search(r'Score:\s*(\d+(?:\.\d+)?)', text)
-    if match:
+    if match := re.search(r'Score:\s*(\d+(?:\.\d+)?)', text):
         return float(match.group(1)) if '.' in match.group(1) else int(match.group(1))
     else:
         return 0
@@ -278,11 +257,11 @@ def binning(input_series, threshold):
 
         if count < threshold:
             # Find the score closest to the current score
-            target_value_counts = dict((k, v) for k, v in value_counts.items() if v >= threshold)
+            target_value_counts = {k: v for k, v in value_counts.items() if v >= threshold}
             # If there is an equal score difference, change to the score with the lower coun
             closest_scores = sorted(target_value_counts.items(), key=lambda x: (abs(x[0] - score), x[1])) 
-            
+
             closest_score = closest_scores[1][0]
             series.loc[series == score] = closest_score
-            # print(f"{score} -> {closest_score}")
+                    # print(f"{score} -> {closest_score}")
     return series

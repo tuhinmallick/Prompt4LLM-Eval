@@ -37,8 +37,7 @@ def weighted_sum(scores):
 
 def parse_output(output):
     try:
-        matched = re.search("^ ?([\d\.]+)", output)
-        if (matched):
+        if matched := re.search("^ ?([\d\.]+)", output):
             try:
                 score = float(matched.group(1))
             except:
@@ -68,13 +67,13 @@ def main(args):
 
     if args.aspect_category == 'multi':
         
-        flu = "Fluency:\nThis rating measures the quality of individual sentences, are they well-written and grammatically correct.\nConsider the quality of individual sentences."
-            
         if args.score_func == 'sampling_sum':
-            input_prompt = "{{u_prompt}}\nIn this task you will evaluate the quality of a summary written for a news article.\nTo correctly solve this task, follow these steps:\n\n1. Carefully read the news article, be aware of the information it contains.\n2. Read the proposed summary.\n3. Rate each summary on a scale from 1 (worst) to 5 (best) by its {{aspect}}.\n\n# Definition:\n{{definition}}\n----\nSource text: {{source}}\nSummary: {{summary}}\n\n{{a_prompt}}\n\nScore: {{gen 'score' n=20 temperature=1 max_tokens=5}}" 
+            input_prompt = "{{u_prompt}}\nIn this task you will evaluate the quality of a summary written for a news article.\nTo correctly solve this task, follow these steps:\n\n1. Carefully read the news article, be aware of the information it contains.\n2. Read the proposed summary.\n3. Rate each summary on a scale from 1 (worst) to 5 (best) by its {{aspect}}.\n\n# Definition:\n{{definition}}\n----\nSource text: {{source}}\nSummary: {{summary}}\n\n{{a_prompt}}\n\nScore: {{gen 'score' n=20 temperature=1 max_tokens=5}}"
             structure_program = guidance(input_prompt, llm=g_model, caching=False)
-            
+
             con_score = []
+            flu = "Fluency:\nThis rating measures the quality of individual sentences, are they well-written and grammatically correct.\nConsider the quality of individual sentences."
+
             for i in tqdm(range(len(data))):
                 zero_shot = structure_program(
                     u_prompt=u_prompt,
@@ -88,9 +87,9 @@ def main(args):
                 sampling_parse_list = [parse_output(x) for x in zero_shot['score']]
                 con_score.append(np.mean(np.array(sampling_parse_list)))
 
-            
+
             df = pd.DataFrame({"flu":con_score})
-        
+
     df.to_csv(f"/path/70b_{args.aspect_category}_{args.score_func}1_dev_flu.csv", index=False)
 
 
